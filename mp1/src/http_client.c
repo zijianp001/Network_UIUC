@@ -10,7 +10,7 @@
 
 #include <arpa/inet.h>
 
-#define MAXDATASIZE 512 // max number of bytes we can get at once  
+#define MAXDATASIZE 1024 // max number of bytes we can get at once 
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -56,35 +56,47 @@ void parseArg(char *s, char *host, char *p, char *location) {
 	}
 }
 
-void write_output(int sockfd) {
-	FILE *fp;
-        fp = fopen("output", "wb");
-	char *temp;
-	int start_point=0;
-	int numbytes=0;
-	char buffer[MAXDATASIZE];
+void write_output(int sockfd, char *buffer) {
+	int numbytes;
 	numbytes = recv(sockfd, buffer, MAXDATASIZE-1, 0);
-	while(numbytes!=0){
-		if (numbytes == -1){
-			perror("recv");
-                    return;
-                 }
-		printf("First message\n");
-		temp = strstr(buffer, "\r\n\r\n");
-		temp += 4;
-		if(start_point!=0){
-			fwrite(buffer, sizeof(char), numbytes, fp);
-		}
-		else{
-			fwrite(temp, sizeof(char), numbytes+buffer-temp, fp);
-			start_point=1;
-		}
+	if (numbytes == -1) {
+		perror("recv");
+		return;
+	}
+	char *temp = strstr(buffer, "\r\n\r\n");
+	temp += 4;
+	char rest[MAXDATASIZE] = {0};
+	strcat(rest, temp);
+	*temp = 0;
+	if (*strstr(buffer, "200 OK") == 0) {
+		return;
+	}
+	temp = strstr(buffer, "Content-Length: ");
+	temp += 16;
+	char *t = NULL; 
+	long length = strtol(strtok(temp, "\r\n"), &t, 10);
+	printf("length: %d\n", (int)length);
+	bzero(buffer, MAXDATASIZE);
+	long sum = 0;
+
+	FILE *fp;
+	fp = fopen("output", "w");
+	sum += strlen(rest);
+	fprintf(fp, "%s", rest);
+	for(;;) {
 		numbytes = recv(sockfd, buffer, MAXDATASIZE-1, 0);
+		if (numbytes < 0) {
+	    	break;
+		}
+		if (sum >= length) return;
+		sum += numbytes;
+		printf(buffer);
+		printf("%d", (int)sum);
+		
+		fprintf(fp, "%s", buffer);
+		
+		bzero(buffer, MAXDATASIZE);
 	}
-	if(numbytes==0){
-		printf("end receive, 666");
-	}
-	fclose(fp);
 	return;
 }
 
@@ -148,13 +160,12 @@ int main(int argc, char *argv[])
 
 	freeaddrinfo(servinfo); // all done with this structure
 	
-
-	if(send(sockfd, get_http, strlen(get_http), 0) ==-1){
-		perror("lkajahackh");
+	if (send(sockfd, get_http, strlen(get_http), 0) == -1) {
+		perror("Client sending requests failed");
 		exit(1);
 	}
 
-       write_output(sockfd);
+	write_output(sockfd, buf);
 
 	printf("client: received '%s'\n",buf);
 
@@ -162,4 +173,3 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-
