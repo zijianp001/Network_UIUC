@@ -25,6 +25,7 @@
 #include <sys/time.h>
 #include <queue>
 #include <cmath>
+#include <map>
 
 #define DATA 2000
 
@@ -42,10 +43,18 @@ typedef struct Packet {
 	char data[DATA];
 }packet;
 
-queue<packet*> pq;
+typedef struct Ack {
+	int num;
+}ack;
+
+map<int, packet*> mp;
 
 
-int s, slen;
+
+int s;
+socklen_t slen;
+
+
 void diep(char *s) {
     perror(s);
     exit(1);
@@ -79,17 +88,21 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
 	    if(total_bytes <= 0) {
 		    break;
 	    }
+	    int to_read = DATA;
+	    if(total_bytes < DATA) {
+		    to_read = total_bytes;
+	    }
 	    if(!feof(fp)) {
 		    packet *p1 = new packet;
                     memset((char*)p1, 0, sizeof(*p1));
 		    p1->num_sequence = i;
-                    int count = fread(p1->data, sizeof(char), DATA, fp);
+                    int count = fread(p1->data, sizeof(char), to_read, fp);
                     if(count <= 0) {
 			    break;
                     }
 		    p1->size = count;
 		    total_bytes -= count;
-		    pq.push(p1);
+		    mp[i] = p1;
 	    }
 
 	    else {
@@ -126,14 +139,25 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
         exit(1);
     }
 
-    while(!pq.empty()) {
-            packet *p2 = pq.front();
-            pq.pop();
-            if(sendto(s, p2, sizeof(*p2), 0, (struct sockaddr *)&si_other, sizeof(si_other)) == -1) {
-                    cout << "error 1";
-            }
-            header * h1;
+    while(!mp.empty()) {
+	    for(int i = 0; i < num_packet; i++)  {
+                if(mp.count(i) > 0) {
+                    packet *p2 = mp[i];
+                    if(sendto(s, p2, sizeof(*p2), 0, (struct sockaddr *)&si_other, sizeof(si_other)) == -1) {
+			    cout << "error 1";
+			    exit(1);
+                    }
 
+		    ack *k1 = new ack;
+		    int akg = recvfrom(s, k1, sizeof(*k1), 0, (struct sockaddr*)&si_other, &slen);
+
+		    if(akg != -1) {
+			    mp.erase(k1->num);
+
+		    }
+		    
+		}
+	    }
     }
 
     packet *p3 = new packet;
@@ -141,16 +165,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
     sendto(s, p3, sizeof(*p3), 0, (struct sockaddr *)&si_other, sizeof(si_other)); 
 
 
-    //header *h1  = new header;
-    //h1 -> num_sequence = 10;
-    //h1 -> size = 1000;
-    //if(sendto(s, h1, sizeof(*h1), 0, (struct sockaddr *) &si_other, slen) == -1) {
-	   // cout << "fail";
-	   // exit(1);
-    //}
-
-
-    
 
 	/* Send data and receive acknowledgements on s*/
 
