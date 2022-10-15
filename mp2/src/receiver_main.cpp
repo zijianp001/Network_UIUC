@@ -16,7 +16,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#define DATA 2000
+#define DATA 500000
 
 using namespace std;
 
@@ -83,9 +83,19 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 	     }
 	     if(p1->num_sequence == correct_seq) {
 		     fwrite(p1->data, sizeof(char), p1->size, fp);
+		     int copy = -2;
+		   //  if(sendto(s, &copy, sizeof(copy), 0, (struct sockaddr *)&si_other, slen) == -1) {
+		//	     diep("Error");
+		  //   }
 
+		     correct_seq++;
 	     }
-	     correct_seq ++;
+	     //if(p1->num_sequence > correct_seq) {
+	//	     int copy = correct_seq;
+	//	     if(sendto(s, &copy, sizeof(copy), 0, (struct sockaddr *)&si_other, slen) == -1) {
+	//		     diep("Error");
+	//	     }
+	  //   }
      }
 
      fclose(fp);

@@ -26,7 +26,7 @@
 #include <queue>
 #include <cmath>
 
-#define DATA 2000
+#define DATA 500000
 
 using namespace std;
 
