@@ -15,8 +15,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <map>
 
-#define DATA 500000
+#define DATA 2000
 
 using namespace std;
 
@@ -40,8 +41,15 @@ typedef struct Packet {
 	char data[DATA];
 }packet;
 
+typedef struct Ack {
+	int num;
+}ack;
+
+
+map<int, packet*> mp;
+
 void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
-    char buf[2000];
+    //char buf[2000];
     slen = sizeof (si_other);
 
 
@@ -56,7 +64,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     if (bind(s, (struct sockaddr*) &si_me, sizeof (si_me)) == -1)
         diep("bind");
 
-    int correct_seq = 0;
+    //int correct_seq = 0;
 
 
 	/* Now receive data and send acknowledgements */    
@@ -77,26 +85,30 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 	     if(num_bytes == -1) {
 		     cout << "Error kkk";
 	     }
-	     if(p1->num_sequence == -1) {
+	     int curr = p1 -> num_sequence;
+	     if(curr == -1) {
 		     cout << "Finish";
 		     break;
 	     }
-	     if(p1->num_sequence == correct_seq) {
-		     fwrite(p1->data, sizeof(char), p1->size, fp);
-		     int copy = -2;
+	     if(curr >= 0) {
+		     mp[curr] = p1;
+		     ack *a1 = new ack;
+                     a1 -> num = p1 -> num_sequence;
+                     if(sendto(s, a1, sizeof(*a1), 0, (struct sockaddr *)&si_other,slen) == -1) {
+			     cout << "Error 3";
+                     }
+	     }
+     }
+     //if(p1->num_sequence == correct_seq) {
+//		     fwrite(p1->data, sizeof(char), p1->size, fp);
+//		     int copy = -2;
 		   //  if(sendto(s, &copy, sizeof(copy), 0, (struct sockaddr *)&si_other, slen) == -1) {
 		//	     diep("Error");
 		  //   }
-
-		     correct_seq++;
-	     }
-	     //if(p1->num_sequence > correct_seq) {
-	//	     int copy = correct_seq;
-	//	     if(sendto(s, &copy, sizeof(copy), 0, (struct sockaddr *)&si_other, slen) == -1) {
-	//		     diep("Error");
-	//	     }
-	  //   }
-     }
+      map<int, packet*>::iterator iter;
+      for( iter = mp.begin(); iter != mp.end(); ++iter) {
+	      fwrite(iter->second->data, sizeof(char), iter->second->size, fp);
+      }
 
      fclose(fp);
 
