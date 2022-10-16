@@ -157,7 +157,11 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
 		    }
 		    
 		}
+		if( i > 35 ) {
+			break;
+		}
 	    }
+	    break;
     }
 
     packet *p3 = new packet;
