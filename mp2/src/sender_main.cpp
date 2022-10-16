@@ -27,7 +27,7 @@
 #include <cmath>
 #include <map>
 
-#define DATA 2000
+#define DATA 1500
 
 using namespace std;
 
