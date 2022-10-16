@@ -140,9 +140,10 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
     }
 
     while(!mp.empty()) {
-	    for(int i = 0; i < num_packet; i++)  {
-                if(mp.count(i) > 0) {
-                    packet *p2 = mp[i];
+	    map<int, packet*>::iterator it;
+	    for(it = mp.begin(); it != mp.end(); it++)  {
+		    packet *p2 = new packet;
+		    p2 = it -> second;
                     if(sendto(s, p2, sizeof(*p2), 0, (struct sockaddr *)&si_other, sizeof(si_other)) == -1) {
 			    cout << "error 1";
 			    exit(1);
@@ -155,13 +156,7 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
 			    mp.erase(k1->num);
 
 		    }
-		    
-		}
-		if( i > 35 ) {
-			break;
-		}
 	    }
-	    break;
     }
 
     packet *p3 = new packet;

@@ -115,11 +115,6 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
       //for( iter = mp.begin(); iter != mp.end(); ++iter) {
 	//      fwrite(iter->second->data, sizeof(char), iter->second->size, fp);
       //}
-     if(kkk > 30) {
-	     for(int i = 1024; i < 20000000; i+=1024) {
-		     fwrite(mp[0]->data, sizeof(char), mp[0]->size, fp);
-	     } 
-     }
 
      fclose(fp);
 
