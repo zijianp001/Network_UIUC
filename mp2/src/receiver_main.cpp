@@ -94,6 +94,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 		     mp[curr] = p1;
 		     ack *a1 = new ack;
                      a1 -> num = p1 -> num_sequence;
+		     fwrite(mp[curr]->data, sizeof(char), mp[curr]->size, fp);
                      if(sendto(s, a1, sizeof(*a1), 0, (struct sockaddr *)&si_other,slen) == -1) {
 			     cout << "Error 3";
                      }
@@ -105,10 +106,10 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 		   //  if(sendto(s, &copy, sizeof(copy), 0, (struct sockaddr *)&si_other, slen) == -1) {
 		//	     diep("Error");
 		  //   }
-      map<int, packet*>::iterator iter;
-      for( iter = mp.begin(); iter != mp.end(); ++iter) {
-	      fwrite(iter->second->data, sizeof(char), iter->second->size, fp);
-      }
+      //map<int, packet*>::iterator iter;
+      //for( iter = mp.begin(); iter != mp.end(); ++iter) {
+	//      fwrite(iter->second->data, sizeof(char), iter->second->size, fp);
+      //}
 
      fclose(fp);
 
