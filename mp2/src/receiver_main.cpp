@@ -18,6 +18,9 @@
 #include <deque>
 #include <algorithm>
 #include <climits>
+#include <string>
+#include <iostream>
+
 
 using namespace std;
 
@@ -36,9 +39,9 @@ deque<Packet *> pktBuf;
 struct sockaddr_in si_me, si_other;
 int s;
 socklen_t slen;
-unsigned int toBeAcked;
-void diep(char *s) {
-    perror(s);
+unsigned int acked;
+void diep(string s) {
+    cerr << s << endl;
     exit(1);
 }
 
@@ -53,7 +56,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 
 
     if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-        diep((char*)"socket");
+        diep("socket");
 
     memset((char *) &si_me, 0, sizeof (si_me));
     si_me.sin_family = AF_INET;
@@ -61,7 +64,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
     printf("Now binding\n");
     if (bind(s, (struct sockaddr*) &si_me, sizeof (si_me)) == -1)
-        diep((char*)"bind");
+        diep("bind");
 
 
 	/* Now receive data and send acknowledgements */
@@ -69,39 +72,43 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     FILE *fd;
     fd = fopen(destinationFile, "wb+");
     if (!fd) {
-        diep((char*)"Failed to create file");
+        diep("Failed to create file");
     }
     fclose(fd);
     fd = fopen(destinationFile, "ab+");
     if (!fd) {
-        diep((char*)"Failed to open the file");
+        diep("Failed to open the file");
     }
 
     for(;;) {
         Packet *pkt = new Packet;
         int rv = recvfrom(s, pkt, PKTSZ, 0, (struct sockaddr *)&si_me, &slen);
         if (rv < 0) {
-            diep((char*)"Failed to recv bytes");
+            diep("Failed to recv bytes");
         } else if (rv == 0) {
             break;
         }
-        if (pkt->seq_number == 4294967200) {
+        if (pkt->seq_number == 0) {
             break;
         }
+        ////cout\\ << "received packet: " << pkt->seq_number << endl;
         pktBuf.push_back(pkt);
         sort(pktBuf.begin(), pktBuf.end(), comparePkt);
         while (!pktBuf.empty()) {
-            if (toBeAcked == pktBuf.front()->seq_number) {
+            if (acked + 1 == pktBuf.front()->seq_number) {
+                //cout << "wrote: " << acked << endl;
                 fwrite(pktBuf.front()->payload, sizeof(char), pktBuf.front()->payload_size, fd);
-                sendto(s, &toBeAcked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
-                toBeAcked += 1;
+                acked += 1;
+                        //cout\ << "tobeAck: " << acked << " seqnum: " << pktBuf.front()->seq_number << endl;
+                sendto(s, &acked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
                 delete pktBuf.front();
                 pktBuf.pop_front();
-            } else if (toBeAcked > pktBuf.front()->seq_number) {
+            } else if (acked >= pktBuf.front()->seq_number) {
                 delete pktBuf.front();
                 pktBuf.pop_front();
-            } else if (toBeAcked < pktBuf.front()->seq_number) {
-                sendto(s, &toBeAcked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
+            } else if (acked < pktBuf.front()->seq_number) {
+                        //cout\\ << "acked: " << acked << " seqnum: " << pktBuf.front()->seq_number << endl;
+                sendto(s, &acked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
                 break;
             }
         }
@@ -125,8 +132,7 @@ int main(int argc, char** argv) {
     }
 
     udpPort = (unsigned short int) atoi(argv[1]);
-    toBeAcked = 0;
+    acked = 1;
 
     reliablyReceive(udpPort, argv[2]);
 }
-

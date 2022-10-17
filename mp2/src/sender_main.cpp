@@ -20,12 +20,12 @@
 #include <string.h>
 #include <sys/time.h>
 #include <string>
-#include <deque>
+#include <unordered_map>
 #include <climits>
 #include <netdb.h>
 #include <iostream>
-#include <unordered_map>
 #include <math.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -48,7 +48,6 @@ FILE *fd;
 char *hostname;
 char *filename;
 char *udpPortStr;
-unsigned short int udpPort;
 unsigned long long int numBytesToTransfer;
 
 struct addrinfo hints, *servinfo, *p;
@@ -63,16 +62,20 @@ float cw;
 unsigned int lastAck;
 unsigned int dupAcks;
 unsigned int toBeSent;
+unsigned int nop;
+unsigned int noa;
+unsigned int freePkt;
 unsigned long long int bytesSent;
-unsigned long long int bytesAcked;
 bool allSent;
-deque<Packet *> packetsInTransfer;
-unordered_map<unsigned int, unsigned int> recvAcks;
+unordered_map<unsigned int, Packet *> packetsInTransfer;
 struct timeval ts;
 
 void diep(char *s) {
     perror(s);
     exit(1);
+}
+bool pktcmp(Packet *p1, Packet *p2) {
+    return p1->seq_number < p2->seq_number;
 }
 
 int initConnection(int argc, char **argv) {
@@ -84,23 +87,23 @@ int initConnection(int argc, char **argv) {
     hostname = argv[1];
     udpPortStr = argv[2];
     filename = argv[3];
-    udpPort = (unsigned short int) atoi(udpPortStr);
     numBytesToTransfer = atoll(argv[4]);
     SST = 64;
     txState = SEND;
     ctrlState = SLOWSTART;
 
-    wdBase = 0;
+    wdBase = 2;
     cw = 1.0;
     dupAcks = 0;
     allSent = false;
-    toBeSent = 0;
+    toBeSent = 2;
     bytesSent = 0;
-    bytesAcked = 0;
-    lastAck = 0;
+    lastAck = 1;
     ts.tv_sec = 0;
     ts.tv_usec = TMOUT;
-
+    noa = 0;
+    nop = 0;
+    freePkt = 2;
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
@@ -131,40 +134,80 @@ int initConnection(int argc, char **argv) {
 
     fd = fopen(filename, "rb");
     if (!fd) {
-        cout << "Cannot open the file";
+        //cout << "Cannot open the file";
     }
 
     return 0;
 }
 
 void send_pkt() {
-    if (bytesSent >= numBytesToTransfer) {
-        txState = WAITING;
-        return;
-    }
-    while (toBeSent < wdBase + static_cast<unsigned int>(cw)) {
-        Packet *pkt = new Packet();
-        pkt->seq_number = toBeSent;
-        pkt->payload_size = numBytesToTransfer - bytesSent > UDPPLD ?
-                            UDPPLD : numBytesToTransfer - bytesSent;
-        fread(pkt->payload, sizeof(char), pkt->payload_size, fd);
-        rv = send(sockfd, pkt, pkt->payload_size + 2 * sizeof(unsigned int), 0);
-        if (rv < 0) {
-            fprintf(stderr, "talker: failed to send pkts\n");
+    while (toBeSent <= wdBase + static_cast<unsigned int>(cw) && toBeSent <= nop + 2) {
+        ////cout << "ToBeSent: " << toBeSent << " wdBase: " << wdBase << " cw: " << cw << endl;
+        Packet *pkt;
+        if (packetsInTransfer.count(toBeSent) == 0 && bytesSent < numBytesToTransfer) { 
+            pkt = new Packet();
+            pkt->seq_number = toBeSent;
+            pkt->payload_size = numBytesToTransfer - bytesSent > UDPPLD ?
+                                UDPPLD : numBytesToTransfer - bytesSent;
+            fread(pkt->payload, sizeof(char), pkt->payload_size, fd);
+            ////cout << "Sent packet: " << pkt->seq_number << " " << pkt->payload_size + 2 * sizeof(unsigned int) << "wdbase: "<<wdBase<<"cw: "<< cw << endl;
+            rv = send(sockfd, pkt, pkt->payload_size + 2 * sizeof(unsigned int), 0);
+            bytesSent += pkt->payload_size;
+            printf("%s",pkt->payload);
+                
+            if (rv < 0) {
+                fprintf(stderr, "talker: failed to send pkts\n");
+            }
+            nop++;
+            packetsInTransfer[toBeSent] = pkt;
+            toBeSent += 1;
+            ////cout << "111" << endl;
+        } else if (packetsInTransfer.count(toBeSent) == 1) {
+            pkt = packetsInTransfer[toBeSent];
+            //cout << "Sent: " << toBeSent << endl;
+            rv = send(sockfd, pkt, pkt->payload_size + 2 * sizeof(unsigned int), 0);
+            toBeSent += 1;
+            //cout << "222" << endl;
+        } else if (nop + 2 == noa) {
+            allSent = true;
+            //cout << "333" << endl;
+            break;
+        } else {
+            //cout << "111 nop: " << nop << " 111 noa: " << noa << "ToBesent" << toBeSent << endl;
+            
+            
+            pkt = new Packet();
+            pkt->seq_number = toBeSent;
+            pkt->payload_size = numBytesToTransfer - bytesSent > UDPPLD ?
+                                UDPPLD : numBytesToTransfer - bytesSent;
+            if (fread(pkt->payload, sizeof(char), pkt->payload_size, fd) == 0) {
+                allSent = true;
+                break;
+            }
+            //cout << "Sent packet: " << pkt->seq_number << " " << pkt->payload_size + 2 * sizeof(unsigned int) << "wdbase: "<<wdBase<<"cw: "<< cw << endl;
+            rv = send(sockfd, pkt, pkt->payload_size + 2 * sizeof(unsigned int), 0);
+            bytesSent += pkt->payload_size;
+            printf("%s",pkt->payload);
+                
+            if (rv < 0) {
+                fprintf(stderr, "talker: failed to send pkts\n");
+            }
+            nop++;
+            packetsInTransfer[toBeSent] = pkt;
+            //cout << "111" << endl;
+            
+            
+            break;
         }
-        toBeSent += 1;
-        bytesSent += pkt->payload_size;
-        packetsInTransfer.push_back(pkt);
-        if (bytesSent >= numBytesToTransfer) {
-            txState = WAITING;
-            return;
-        }
+            //cout << "nop: " << nop << " noa: " << noa << endl;
     }
     txState = WAITING;
 }
 
 void resend_base() {
-    Packet *base = packetsInTransfer.front();
+    //cout << "shit2: " << packetsInTransfer.count(wdBase) << " " << wdBase << endl;
+    Packet *base = packetsInTransfer[wdBase];
+    //cout << "Resend packet: " << base->seq_number << endl;
     rv = send(sockfd, base, base->payload_size + 2 * sizeof(unsigned int), 0);
     if (rv < 0) {
         fprintf(stderr, "sender: failed to resend pkts\n");
@@ -172,61 +215,63 @@ void resend_base() {
     txState = WAITING;
 }
 
-int recvWithTimeo(void *seq, size_t sz) {
-    rv = setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &ts, sizeof(ts));
-    cout << "Waiting time out!" << endl;
-    rv = recv(sockfd, seq, sz, 0);
-    return rv;
-}
-
 void wait_ack() {
     unsigned int ack_seq;
     // First we want to find if there is a time out
-    rv = recvWithTimeo(&ack_seq, sizeof(unsigned int));
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &ts, sizeof(ts));
+    rv = recv(sockfd, &ack_seq, sizeof(unsigned int), 0);
+    //cout << "Received ack: " << ack_seq << endl;
     if (rv < 0) {
         fprintf(stderr, "sender: waiting time out\n");
-        wdBase = packetsInTransfer.front()->seq_number;
+        wdBase = lastAck + 1;
         cw = 1;
         toBeSent = wdBase;
-        lastAck = wdBase - 1;
         dupAcks = 0;
-        resend_base();
+        txState = SEND;
         ctrlState = SLOWSTART;
         return;
     }
     // We did recv one ack
-    cout << "packet: " << ack_seq << endl;
+    //cout << "packet: " << ack_seq << " lastAck: " << lastAck << endl;
     // If this is a dupAck
-    if (ack_seq == lastAck) {
-        dupAcks += 1;
-        if (dupAcks == 3) {
 
+    if (ack_seq == lastAck) {
+        wdBase = lastAck + 1;
+        dupAcks += 1;
+        noa = ack_seq > noa ? ack_seq : noa;
+        if (dupAcks == 3) {
             SST = static_cast<unsigned int>(cw) / 2;
             cw = SST + 3;
             resend_base();
-            ctrlState = FASTRECOVERY;
-        } else if (dupAcks > 3 && ctrlState == FASTRECOVERY) {
-            cw += 1;
+            cw = SST;
+            ctrlState = CONGESTIONAVOID;
+        } else if (dupAcks > 3) {
+            fprintf(stderr, "sender: waiting time out\n");
+            wdBase = lastAck + 1;
+            cw = 1;
+            toBeSent = wdBase;
+            dupAcks = 0;
             txState = SEND;
+            ctrlState = SLOWSTART;
         }
         return;
     } else if (ack_seq > lastAck) {
         lastAck = ack_seq;
         dupAcks = 1;
     } else {
+        //cout << "shit3: " << packetsInTransfer.count(lastAck) << endl;
+        //delete packetsInTransfer[lastAck];
         return;
     }
+    noa = ack_seq;
     // If this is not a dup
-    wdBase = lastAck;
-    while (packetsInTransfer.size() > 0 && packetsInTransfer.front()->seq_number <= lastAck) {
-        Packet *base = packetsInTransfer.front();
-        wdBase = base->seq_number;
-        packetsInTransfer.pop_front();
-        delete base;
-    }
+    wdBase = lastAck + 1;
+    //cout << "wdBase: " << wdBase << endl;
+    //cout << "shit4: " << packetsInTransfer.count(lastAck) << endl;
+    //delete packetsInTransfer[lastAck];
 
     // Check if all of the packets are received by the receiver
-    if (packetsInTransfer.size() == 0 && bytesSent == numBytesToTransfer) {
+    if (noa >= nop + 2) {
         allSent = true;
         return;
     }
@@ -245,7 +290,6 @@ void wait_ack() {
             cw = SST;
             ctrlState = CONGESTIONAVOID;
     }
-    wdBase += 1;
     txState = SEND;
 
 }
@@ -264,12 +308,11 @@ void reliablyTransfer() {
                 break;
         }
     }
-
 }
 
 void closeConnection() {
     Packet endConnection;
-    endConnection.seq_number = 4294967200;
+    endConnection.seq_number = 0;
     endConnection.payload_size = sizeof(unsigned int);
     send(sockfd, &endConnection, endConnection.payload_size + 2 * sizeof(unsigned int), 0);
     freeaddrinfo(servinfo);
@@ -292,5 +335,3 @@ int main(int argc, char** argv) {
 
     return (EXIT_SUCCESS);
 }
-
-
