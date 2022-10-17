@@ -20,6 +20,7 @@
 #include <climits>
 #include <string>
 #include <iostream>
+#include <map>
 
 
 using namespace std;
@@ -28,13 +29,13 @@ using namespace std;
 #define UDPPLD 1024
 #define PKTSZ 1040
 
-struct Packet {
+typedef struct Packet {
     unsigned int seq_number;
     unsigned int payload_size;
     char payload[UDPPLD];
-};
+}packet;
 
-deque<Packet *> pktBuf;
+map<unsigned int, packet*> mp;
 
 struct sockaddr_in si_me, si_other;
 int s;
@@ -81,8 +82,8 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     }
 
     for(;;) {
-        Packet *pkt = new Packet;
-        int rv = recvfrom(s, pkt, PKTSZ, 0, (struct sockaddr *)&si_me, &slen);
+        packet *pkt = new packet;
+        int rv = recvfrom(s, pkt, sizeof(*pkt), 0, (struct sockaddr *)&si_other, &slen);
         if (rv < 0) {
             diep("Failed to recv bytes");
         } else if (rv == 0) {
@@ -92,28 +93,16 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
             break;
         }
         ////cout\\ << "received packet: " << pkt->seq_number << endl;
-        pktBuf.push_back(pkt);
-        sort(pktBuf.begin(), pktBuf.end(), comparePkt);
-        while (!pktBuf.empty()) {
-            if (acked + 1 == pktBuf.front()->seq_number) {
-                //cout << "wrote: " << acked << endl;
-                fwrite(pktBuf.front()->payload, sizeof(char), pktBuf.front()->payload_size, fd);
-                acked += 1;
-                        //cout\ << "tobeAck: " << acked << " seqnum: " << pktBuf.front()->seq_number << endl;
-                sendto(s, &acked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
-                delete pktBuf.front();
-                pktBuf.pop_front();
-            } else if (acked >= pktBuf.front()->seq_number) {
-                delete pktBuf.front();
-                pktBuf.pop_front();
-            } else if (acked < pktBuf.front()->seq_number) {
-                        //cout\\ << "acked: " << acked << " seqnum: " << pktBuf.front()->seq_number << endl;
-                sendto(s, &acked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
-                break;
-            }
-        }
+	acked = pkt -> seq_number;
+        mp[acked] = pkt;
+	sendto(s, &acked, sizeof(unsigned int), 0, (struct sockaddr*)&si_other,slen);
+        
     }
 
+    map<unsigned int, packet*>::iterator iter;
+    for( iter = mp.begin(); iter != mp.end(); ++iter) {
+	    fwrite(iter->second->payload, sizeof(char), iter->second->payload_size, fd);
+    }
     close(s);
 	printf("%s received.", destinationFile);
     return;
