@@ -1,10 +1,10 @@
-/* 
- * File:   receiver_main.c
- * Author: 
+/*
+ * File:   receiver_main.cpp
+ * Author: Zhenglin Yu
  *
- * Created on
+ * Created on Oct 10, 2022
  */
-#include <iostream>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,46 +15,45 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <map>
-
-#define DATA 1500
+#include <deque>
+#include <algorithm>
+#include <climits>
 
 using namespace std;
+
+// payload length
+#define UDPPLD 1024
+#define PKTSZ 1040
+
+struct Packet {
+    unsigned int seq_number;
+    unsigned int payload_size;
+    char payload[UDPPLD];
+};
+
+deque<Packet *> pktBuf;
 
 struct sockaddr_in si_me, si_other;
 int s;
 socklen_t slen;
-
+unsigned int toBeAcked;
 void diep(char *s) {
     perror(s);
     exit(1);
 }
 
-typedef struct Header {
-	int num_sequence;
-	int data_size;
-}header;
+bool comparePkt(Packet *p1, Packet *p2) {
+    return p1->seq_number < p2->seq_number;
+}
 
-typedef struct Packet {
-	int num_sequence;
-	int size;
-	char data[DATA];
-}packet;
-
-typedef struct Ack {
-	int num;
-}ack;
-
-
-map<int, packet*> mp;
 
 void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
-    //char buf[2000];
+
     slen = sizeof (si_other);
 
 
     if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-        diep("socket");
+        diep((char*)"socket");
 
     memset((char *) &si_me, 0, sizeof (si_me));
     si_me.sin_family = AF_INET;
@@ -62,62 +61,51 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
     printf("Now binding\n");
     if (bind(s, (struct sockaddr*) &si_me, sizeof (si_me)) == -1)
-        diep("bind");
-
-    //int correct_seq = 0;
+        diep((char*)"bind");
 
 
-	/* Now receive data and send acknowledgements */    
-	    //header *h1 = new header;
-	    //int num_bytes = recvfrom(s, h1, sizeof(*h1), 0, (struct sockaddr*)&si_other, &slen);
-	    //if(num_bytes == -1) {
-	//	    cout << "eoor"; 
-	  //  }
-     FILE *fp;
-     fp = fopen(destinationFile, "ab");
-     if(fp == NULL) {
-	     cout << "File can not be opened";
-	     exit(1);
-     }
-     int kkk = 0;
-     while(true) {
-	     packet *p1 = new packet;
-	     int num_bytes = recvfrom(s, p1, sizeof(*p1), 0, (struct sockaddr*)&si_other, &slen);
-	     if(num_bytes == -1) {
-		     cout << "Error kkk";
-	     }
-	     int curr = p1 -> num_sequence;
-	     if(curr > 30) {
-		     kkk = curr;
-		     break;
-	     }
-	     if(curr == -1) {
-		     cout << "Finish";
-		     break;
-	     }
-	     if(curr >= 0) {
-		     mp[curr] = p1;
-		     ack *a1 = new ack;
-                     a1 -> num = p1 -> num_sequence;
-		     fwrite(mp[curr]->data, sizeof(char), mp[curr]->size, fp);
-                     if(sendto(s, a1, sizeof(*a1), 0, (struct sockaddr *)&si_other,slen) == -1) {
-			     cout << "Error 3";
-                     }
-	     }
-     }
-     //if(p1->num_sequence == correct_seq) {
-//		     fwrite(p1->data, sizeof(char), p1->size, fp);
-//		     int copy = -2;
-		   //  if(sendto(s, &copy, sizeof(copy), 0, (struct sockaddr *)&si_other, slen) == -1) {
-		//	     diep("Error");
-		  //   }
-      //map<int, packet*>::iterator iter;
-      //for( iter = mp.begin(); iter != mp.end(); ++iter) {
-	//      fwrite(iter->second->data, sizeof(char), iter->second->size, fp);
-      //}
+	/* Now receive data and send acknowledgements */
 
-     fclose(fp);
+    FILE *fd;
+    fd = fopen(destinationFile, "wb+");
+    if (!fd) {
+        diep((char*)"Failed to create file");
+    }
+    fclose(fd);
+    fd = fopen(destinationFile, "ab+");
+    if (!fd) {
+        diep((char*)"Failed to open the file");
+    }
 
+    for(;;) {
+        Packet *pkt = new Packet;
+        int rv = recvfrom(s, pkt, PKTSZ, 0, (struct sockaddr *)&si_me, &slen);
+        if (rv < 0) {
+            diep((char*)"Failed to recv bytes");
+        } else if (rv == 0) {
+            break;
+        }
+        if (pkt->seq_number == 4294967200) {
+            break;
+        }
+        pktBuf.push_back(pkt);
+        sort(pktBuf.begin(), pktBuf.end(), comparePkt);
+        while (!pktBuf.empty()) {
+            if (toBeAcked == pktBuf.front()->seq_number) {
+                fwrite(pktBuf.front()->payload, sizeof(char), pktBuf.front()->payload_size, fd);
+                sendto(s, &toBeAcked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
+                toBeAcked += 1;
+                delete pktBuf.front();
+                pktBuf.pop_front();
+            } else if (toBeAcked > pktBuf.front()->seq_number) {
+                delete pktBuf.front();
+                pktBuf.pop_front();
+            } else if (toBeAcked < pktBuf.front()->seq_number) {
+                sendto(s, &toBeAcked, sizeof(unsigned int), 0, (struct sockaddr *)&si_me, slen);
+                break;
+            }
+        }
+    }
 
     close(s);
 	printf("%s received.", destinationFile);
@@ -125,7 +113,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 }
 
 /*
- * 
+ *
  */
 int main(int argc, char** argv) {
 
@@ -137,6 +125,7 @@ int main(int argc, char** argv) {
     }
 
     udpPort = (unsigned short int) atoi(argv[1]);
+    toBeAcked = 0;
 
     reliablyReceive(udpPort, argv[2]);
 }
