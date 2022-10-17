@@ -94,14 +94,12 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
         }
         ////cout\\ << "received packet: " << pkt->seq_number << endl;
 	acked = pkt -> seq_number;
-        mp[acked] = pkt;
 	sendto(s, &acked, sizeof(unsigned int), 0, (struct sockaddr*)&si_other,slen);
         
-    }
-
-    map<unsigned int, packet*>::iterator iter;
-    for( iter = mp.begin(); iter != mp.end(); ++iter) {
-	    fwrite(iter->second->payload, sizeof(char), iter->second->payload_size, fd);
+	if(mp.count(acked) <= 0) {
+		mp[acked] = pkt;
+		fwrite(pkt->payload, sizeof(char), pkt->payload_size, fd);
+	}
     }
     close(s);
 	printf("%s received.", destinationFile);
