@@ -81,25 +81,38 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
         diep("Failed to open the file");
     }
 
+    acked += 1;
     for(;;) {
         packet *pkt = new packet;
         int rv = recvfrom(s, pkt, sizeof(*pkt), 0, (struct sockaddr *)&si_other, &slen);
-        if (rv < 0) {
+        if (rv <= 0) {
             diep("Failed to recv bytes");
-        } else if (rv == 0) {
-            break;
+	    break;
         }
-        if (pkt->seq_number == 0) {
-            break;
-        }
-        ////cout\\ << "received packet: " << pkt->seq_number << endl;
-	acked = pkt -> seq_number;
-	sendto(s, &acked, sizeof(unsigned int), 0, (struct sockaddr*)&si_other,slen);
-        
-	if(mp.count(acked) <= 0) {
-		mp[acked] = pkt;
-		fwrite(pkt->payload, sizeof(char), pkt->payload_size, fd);
-	}
+	else{
+		unsigned int curr = pkt -> seq_number;
+		if (curr == 0) {
+			break;
+		}
+		else {
+			if(acked == curr) {
+				mp[acked] = pkt;
+				fwrite(pkt->payload, sizeof(char), 
+						pkt->payload_size, fd);
+				acked +=1;
+				while(mp.count(acked) > 0) {
+					fwrite(mp[acked]->payload, 
+			sizeof(char), mp[acked]->payload_size, fd);
+					acked +=1;
+				}
+			}
+			else if(acked < curr) {
+				mp[curr] = pkt;
+			}
+			sendto(s, &curr, sizeof(unsigned int), 0, 
+				(struct sockaddr *)&si_other, slen);
+		}
+	}	
     }
     close(s);
 	printf("%s received.", destinationFile);
