@@ -34,11 +34,11 @@ void readTopology(char* filename) {
 void dijkstra(int source) {
 	unordered_map<int, int> D;
 	unordered_set<int> N;
+	N.insert(source);
 	unordered_map<int, int> neighbors = edges[source];
 	unordered_map<int, int> P;
 	map<int, int> spanning_tree;
 
-	N.insert(source);
 	for(int target : nodes) {
 		P[target] = source;
 		if(source == target) {
@@ -53,11 +53,11 @@ void dijkstra(int source) {
 	}
 
 	int start = 0;
-	int count = 0;
-	while(N.size() < nodes.size() && count <= nodes.size()) {
+	bool end = false;
+	while(end == false) {
+		end = true;
 		int next_node = INT_MAX;
 		int cost_to_next_node = INT_MAX;
-
 		for(int neighbor : nodes) {
 			if(N.count(neighbor) <= 0) {
 				int cost_to_this_node = D[neighbor];
@@ -68,6 +68,7 @@ void dijkstra(int source) {
 			}
 		}
 		if(next_node < INT_MAX) {
+			end = false;
 			N.insert(next_node);
 			spanning_tree[start] = next_node;
 			start++;
@@ -85,7 +86,6 @@ void dijkstra(int source) {
 				}
 			}
 		}
-		count++;
 	}
 	for(int i = 0; i < spanning_tree.size(); i++) {
 		int temp = spanning_tree[i];
@@ -104,7 +104,7 @@ void dijkstra(int source) {
 
 }
 
-void dijkstra() {
+void computeForwardTable() {
 	forward_table.clear();
 	for(int source : nodes) {
 		dijkstra(source);
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
 	    //}
 	    //cout << "\n\n\n";
     //}
-    dijkstra();
+    computeForwardTable();
     printForwardTable();
     ifstream file;
     file.open(argv[3]);
@@ -237,7 +237,7 @@ int main(int argc, char** argv) {
 		    edges[node1][node2] = cost;
 		    edges[node2][node1] = cost;
 	    }
-	    dijkstra();
+	    computeForwardTable();
 	    printForwardTable();
 	    ifstream message(argv[2]);
 	    string line;
