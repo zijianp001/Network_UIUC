@@ -40,7 +40,6 @@ void dijkstra(int source) {
 	map<int, int> spanning_tree;
 
 	for(int target : nodes) {
-		P[target] = source;
 		if(source == target) {
 			D[target] = 0;
 		}
@@ -121,13 +120,7 @@ void printForwardTable() {
 			map<int, int> temp2 = j -> second;
 			//cout<< "Destination: ";
 			//cout << j -> first;
-			outfile << j -> first;
-			outfile << " "; 
-			//cout << temp2[0];
-			outfile << temp2[0];
-			outfile << " ";
-			outfile << temp2[1];
-			outfile << "\n";
+			outfile << j -> first << " " << temp2[0] << " " << temp2[1] << "\n";
 		}
 	}
 	outfile.close();
