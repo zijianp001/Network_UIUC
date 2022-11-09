@@ -220,11 +220,11 @@ int main(int argc, char** argv) {
 
 
 
-    int change_num = 1;
+    //int change_num = 1;
     while(file >> node1 >> node2 >> cost) {
 	    ofstream outfile_change_num;
 	    outfile_change_num.open("output.txt", ios_base::app);
-	    outfile_change_num << "---At this point, " << change_num << " change is applied" << "\n";
+	    //outfile_change_num << "---At this point, " << change_num << " change is applied" << "\n";
 	    outfile_change_num.close();
 	    if(cost == -999) {
 		    edges[node1].erase(node2);
@@ -262,7 +262,7 @@ int main(int argc, char** argv) {
 		    }
 		    message.close();
 	    }
-	    change_num++;
+	    //change_num++;
     }
     file.close();
 
