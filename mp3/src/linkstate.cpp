@@ -195,6 +195,31 @@ int main(int argc, char** argv) {
     int node1;
     int node2;
     int cost;
+    //Add missing steps
+    ifstream message_before_change(argv[2]);
+    string line_curr;
+    if(message_before_change.is_open()) {
+	    int s;
+	    int t;
+	    while(getline(message_before_change, line_curr)) {
+		    stringstream kk;
+		    kk.str(line_curr);
+		    kk >> s >> t;
+		    int split1 = line_curr.find(" ");
+		    string post_split1 = line_curr.substr(split1 + 1);
+		    int split2 = post_split1.find(" ");
+		    string post_split2 = post_split1.substr(split2 + 1);
+		    printMessage(s, t);
+		    ofstream out;
+		    out.open("output.txt", ios_base::app);
+		    out << post_split2 << "\n";
+                    out.close();
+	    }
+	    message_before_change.close();
+    }
+
+
+
     int change_num = 1;
     while(file >> node1 >> node2 >> cost) {
 	    ofstream outfile_change_num;
