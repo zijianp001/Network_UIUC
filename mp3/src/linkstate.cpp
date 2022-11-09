@@ -44,6 +44,7 @@ void dijkstra(int source) {
 			D[target] = 0;
 		}
 		else if(neighbors.count(target) > 0) {
+			P[target] = source;
 			D[target] = edges[source][target];
 		}
 		else {
