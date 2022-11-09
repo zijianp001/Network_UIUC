@@ -127,7 +127,7 @@ void printForwardTable() {
 	outfile.close();
 }
 
-void printMessage(int source, int target) {
+void printSingleMessage(int source, int target) {
 	ofstream outfile;
 	outfile.open("output.txt", ios_base::app);
 	if(forward_table.count(source) <= 0 || forward_table[source].count(target) <= 0) {
@@ -160,6 +160,30 @@ void printMessage(int source, int target) {
 	outfile.close();
 }
 
+void printFullMessage(char* filename) {
+	string line;
+	ifstream message(filename);
+	if(message.is_open()) {
+		int s;
+		int t;
+		while(getline(message, line)) {
+			stringstream ss;
+			ss.str(line);
+			ss >> s >> t;
+			int split1 = line.find(" ");
+			string post_split1 = line.substr(split1 + 1);
+			int split2 = post_split1.find(" ");
+			string post_split2 = post_split1.substr(split2 + 1);
+			printSingleMessage(s, t);
+			ofstream out;
+			out.open("output.txt", ios_base::app);
+			out << post_split2 << "\n";
+			out.close();
+		}
+		message.close();
+	}
+}
+
 
 int main(int argc, char** argv) {
     //printf("Number of arguments: %d", argc);
@@ -188,37 +212,19 @@ int main(int argc, char** argv) {
     computeForwardTable();
     printForwardTable();
     ifstream file;
-    file.open(argv[3]);
+    //file.open(argv[3]);
     int node1;
     int node2;
     int cost;
     //Add missing steps
-    ifstream message_before_change(argv[2]);
-    string line_curr;
-    if(message_before_change.is_open()) {
-	    int s;
-	    int t;
-	    while(getline(message_before_change, line_curr)) {
-		    stringstream kk;
-		    kk.str(line_curr);
-		    kk >> s >> t;
-		    int split1 = line_curr.find(" ");
-		    string post_split1 = line_curr.substr(split1 + 1);
-		    int split2 = post_split1.find(" ");
-		    string post_split2 = post_split1.substr(split2 + 1);
-		    printMessage(s, t);
-		    ofstream out;
-		    out.open("output.txt", ios_base::app);
-		    out << post_split2 << "\n";
-                    out.close();
-	    }
-	    message_before_change.close();
-    }
-
+    printFullMessage(argv[2]);
+    //cout << "aaaaa";
+    file.open(argv[3]);
 
 
     //int change_num = 1;
     while(file >> node1 >> node2 >> cost) {
+	    //cout << "bbbbb";
 	    ofstream outfile_change_num;
 	    outfile_change_num.open("output.txt", ios_base::app);
 	    //outfile_change_num << "---At this point, " << change_num << " change is applied" << "\n";
@@ -233,33 +239,7 @@ int main(int argc, char** argv) {
 	    }
 	    computeForwardTable();
 	    printForwardTable();
-	    ifstream message(argv[2]);
-	    string line;
-	    if(message.is_open()) {
-		    int source;
-		    int target;
-		    while(getline(message, line)) {
-			    //cout << line << "\n";
-			    stringstream ss;
-			    ss.str(line);
-			    ss >> source >> target;
-			    int split_one = line.find(" ");
-			    string after_first_split = line.substr(split_one + 1);
-			    int split_two = after_first_split.find(" ");
-			    string after_second_split = after_first_split.substr(split_two + 1);
-			    //cout << after_second_split;
-			    //cout << source;
-			    //cout << "\n";
-			    //cout << target; 
-			    printMessage(source, target);
-			    ofstream outfile;
-			    outfile.open("output.txt", ios_base::app);
-			    outfile << after_second_split << "\n";
-			    outfile.close();
-		    }
-		    message.close();
-	    }
-	    //change_num++;
+	    printFullMessage(argv[2]);
     }
     file.close();
 
