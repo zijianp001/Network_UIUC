@@ -80,6 +80,9 @@ void dijkstra(int source) {
 					D[neighbor_of_next_node] = D[next_node] + cost_to_neighbor;
 					P[neighbor_of_next_node] = next_node;
 				}
+				else if(D[next_node] + cost_to_neighbor == D[neighbor_of_next_node] && next_node < P[neighbor_of_next_node]) {
+					P[neighbor_of_next_node] = next_node;
+				}
 			}
 		}
 		count++;
