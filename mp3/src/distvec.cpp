@@ -167,7 +167,6 @@ void printFullMessage(char* filename) {
 
 
 int main(int argc, char** argv) {
-    //printf("Number of arguments: %d", argc);
     if (argc != 4) {
         printf("Usage: ./distvec topofile messagefile changesfile\n");
         return -1;
@@ -180,24 +179,17 @@ int main(int argc, char** argv) {
 
     readTopology(argv[1]);
     distanceInitial();
-    //printTable();
     computeDistance();
     printForwardTable();
     ifstream file;
-    //file.open(argv[3]);
     int node1;
     int node2;
     int cost;
-    //Add missing steps
     printFullMessage(argv[2]);
-    //cout << "aaaaa";
     file.open(argv[3]);
 
 
-    //cout << "\n";
-    //int change_num = 1;
     while(file >> node1 >> node2 >> cost) {
-            //cout << "bbbbb";
             ofstream outfile_change_num;
             outfile_change_num.open("output.txt", ios_base::app);
             outfile_change_num.close();

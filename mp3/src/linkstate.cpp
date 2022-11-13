@@ -13,7 +13,9 @@
 using namespace std;
 unordered_map<int, unordered_map<int ,int>> edges;
 unordered_set<int> nodes;
-map<int, map<int, map<int, int>>> forward_table;
+map<int, map<int, int>> next_hop;
+map<int, map<int, int>> distance_tbl;
+unordered_map<int, unordered_map<int, int>> P;
 
 void readTopology(char* filename) {
 	ifstream file;
@@ -31,43 +33,49 @@ void readTopology(char* filename) {
 	file.close();
 }
 
+void distanceInitial() {
+        distance_tbl.clear();
+	next_hop.clear();
+        for(int source : nodes) {
+                unordered_map <int, int> neighbors = edges[source];
+                for(int target : nodes) {
+                        if(source == target) {
+                                distance_tbl[source][target] = 0;
+                        }
+                        else if(neighbors.count(target) > 0) {
+                                distance_tbl[source][target] = neighbors[target];
+				P[source][target] = source;
+                        }
+                        else {
+                                distance_tbl[source][target] = INT_MAX;
+                        }
+                }
+        }
+}
+
+
 void dijkstra(int source) {
-	unordered_map<int, int> D;
 	unordered_set<int> N;
 	N.insert(source);
 	unordered_map<int, int> neighbors = edges[source];
-	unordered_map<int, int> P;
 	map<int, int> spanning_tree;
-
-	for(int target : nodes) {
-		if(source == target) {
-			D[target] = 0;
-		}
-		else if(neighbors.count(target) > 0) {
-			P[target] = source;
-			D[target] = edges[source][target];
-		}
-		else {
-			D[target] = INT_MAX;
-		}
-	}
 
 	int start = 0;
 	bool end = false;
 	while(end == false) {
 		end = true;
-		int next_node = INT_MAX;
+		int next_node = -1;
 		int cost_to_next_node = INT_MAX;
 		for(int neighbor : nodes) {
 			if(N.count(neighbor) <= 0) {
-				int cost_to_this_node = D[neighbor];
+				int cost_to_this_node = distance_tbl[source][neighbor];
 				if(cost_to_this_node < cost_to_next_node) {
 					next_node = neighbor;
 					cost_to_next_node = cost_to_this_node;
 				}
 			}
 		}
-		if(next_node < INT_MAX) {
+		if(next_node != -1) {
 			end = false;
 			N.insert(next_node);
 			spanning_tree[start] = next_node;
@@ -77,35 +85,32 @@ void dijkstra(int source) {
 			for(auto i = neighbors_of_next_node.begin(); i != neighbors_of_next_node.end(); i++) {
 				int neighbor_of_next_node = i -> first;
 				int cost_to_neighbor = i -> second;
-				if(D[next_node] + cost_to_neighbor < D[neighbor_of_next_node]) {
-					D[neighbor_of_next_node] = D[next_node] + cost_to_neighbor;
-					P[neighbor_of_next_node] = next_node;
+				if(distance_tbl[source][next_node] + cost_to_neighbor < distance_tbl[source][neighbor_of_next_node]) {
+					distance_tbl[source][neighbor_of_next_node] = distance_tbl[source][next_node] + cost_to_neighbor;
+					P[source][neighbor_of_next_node] = next_node;
 				}
-				else if(D[next_node] + cost_to_neighbor == D[neighbor_of_next_node] && next_node < P[neighbor_of_next_node]) {
-					P[neighbor_of_next_node] = next_node;
+				else if(distance_tbl[source][next_node] + cost_to_neighbor == distance_tbl[source][neighbor_of_next_node] && next_node < P[source][neighbor_of_next_node]) {
+					P[source][neighbor_of_next_node] = next_node;
 				}
 			}
 		}
 	}
 	for(int i = 0; i < spanning_tree.size(); i++) {
 		int temp = spanning_tree[i];
-		if(P[temp] == source) {
-			forward_table[source][temp][0] = temp;
+		if(P[source][temp] == source) {
+			next_hop[source][temp] = temp;
 		}
 		else {
-			forward_table[source][temp][0] = forward_table[source][P[temp]][0];
+			next_hop[source][temp] = next_hop[source][P[source][temp]];
 		}
-		forward_table[source][temp][1] = D[temp];
 	}
-	forward_table[source][source][0] = source;
-	forward_table[source][source][1] = 0;
-
-
+	next_hop[source][source] = source;
+	distance_tbl[source][source] = 0;
 
 }
 
 void computeForwardTable() {
-	forward_table.clear();
+	distanceInitial();
 	for(int source : nodes) {
 		dijkstra(source);
 	}
@@ -114,51 +119,54 @@ void computeForwardTable() {
 void printForwardTable() {
 	ofstream outfile;
 	outfile.open("output.txt", ios_base::app);
-	for(auto i = forward_table.begin(); i != forward_table.end(); i++) {
-		map<int, map<int, int>> temp = i -> second;
-		//cout << i -> first;
+	for(auto i = distance_tbl.begin(); i != distance_tbl.end(); i++) {
+		map<int, int> temp = i -> second;
 		for(auto j = temp.begin(); j != temp.end(); j++) {
-			map<int, int> temp2 = j -> second;
-			//cout<< "Destination: ";
-			//cout << j -> first;
-			outfile << j -> first << " " << temp2[0] << " " << temp2[1] << "\n";
+			if(j -> second < INT_MAX) {
+				int source = i -> first;
+				int target = j -> first;
+				int cost = j -> second;
+				int next = next_hop[source][target];
+				outfile << target << " " << next << " " << cost << "\n";
+
+			}
 		}
 	}
 	outfile.close();
 }
+
 
 void printSingleMessage(int source, int target) {
-	ofstream outfile;
-	outfile.open("output.txt", ios_base::app);
-	if(forward_table.count(source) <= 0 || forward_table[source].count(target) <= 0) {
-		outfile << "from " << source << " to " << target << " cost infinite hops unreachable message ";
-	}
-	else if(source == target) {
-		int cost = 0;
-		outfile << "from " << source << " to " << target << " cost " << cost << " hops " << source << " message "; 
-	}
-	else {
-		map<int, int> next_op_and_cost = forward_table[source][target];
-		int cost = next_op_and_cost[1];
-		queue<int> path;
-		int curr = source;
-		while(curr != target) {
-			path.push(curr);
-			curr = next_op_and_cost[0];
-			next_op_and_cost = forward_table[curr][target];
-
-		}
-		outfile << "from " << source << " to " << target << " cost " << cost << " hops ";
-		while(!path.empty()) {
-			int next_op = path.front();
-			path.pop();
-			outfile << next_op << " ";
-		}
-		outfile << "message ";
-	}
-	//outfile << "a new source and target";
-	outfile.close();
+        ofstream outfile;
+        outfile.open("output.txt", ios_base::app);
+        if(distance_tbl.count(source) <= 0 || distance_tbl[source].count(target) <= 0 || distance_tbl[source][target] == INT_MAX) {
+                outfile << "from " << source << " to " << target << " cost infinite hops unreachable message ";
+        }
+        else if(source == target) {
+                int cost = 0;
+                outfile << "from " << source << " to " << target << " cost " << cost << " hops " << source << " message ";
+        }
+        else {
+                int next_op = next_hop[source][target];
+                int cost = distance_tbl[source][target];
+                queue<int> path;
+                int curr = source;
+                while(curr != target) {
+                        path.push(curr);
+                        curr = next_op;
+                        next_op = next_hop[next_op][target];
+                }
+                outfile << "from " << source << " to " << target << " cost " << cost << " hops ";
+                while(!path.empty()) {
+                        int next_op = path.front();
+                        path.pop();
+                        outfile << next_op << " ";
+                }
+                outfile << "message ";
+        }
+        outfile.close();
 }
+
 
 void printFullMessage(char* filename) {
 	string line;
@@ -212,19 +220,13 @@ int main(int argc, char** argv) {
     computeForwardTable();
     printForwardTable();
     ifstream file;
-    //file.open(argv[3]);
     int node1;
     int node2;
     int cost;
-    //Add missing steps
     printFullMessage(argv[2]);
-    //cout << "aaaaa";
     file.open(argv[3]);
 
-
-    //int change_num = 1;
     while(file >> node1 >> node2 >> cost) {
-	    //cout << "bbbbb";
 	    ofstream outfile_change_num;
 	    outfile_change_num.open("output.txt", ios_base::app);
 	    //outfile_change_num << "---At this point, " << change_num << " change is applied" << "\n";
