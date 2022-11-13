@@ -1,232 +1,169 @@
-#include"graph.h"
-#include <vector>
-#include <climits>
-#include <deque>
-#include <unordered_set>
-#include <iostream>
-#include <fstream>
-#include <sstream>
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
+#include<map>
+#include<sstream>
+#include<fstream>
+#include<iostream>
+#include<unordered_map>
+#include<unordered_set>
+#include<vector>
+#include<climits>
+#include<queue>
 
 using namespace std;
 
+unordered_map<int, unordered_map<int ,int>> edges;
+unordered_set<int> nodes;
+map<int, map<int, int>> distance_vec;
+map<int, map<int, int>> next_hop;
 
-void PrintDV(const vector<vector<int>> &v) {
-    for (int i = 1; i < v.size(); i++) {
-        cout << "from: " << i << endl;
-        for (int j = 1; j < v.size(); j++) {
-            cout << " to: " << j << " cost: " << v[i][j] << endl;
+
+
+void readTopology(char* filename) {
+        ifstream file;
+        file.open(filename);
+        int node1;
+        int node2;
+        int cost;
+        while(file >> node1 >> node2 >> cost) {
+                edges[node1][node2] = cost;
+                edges[node2][node1] = cost;
+                nodes.insert(node1);
+                nodes.insert(node2);
+
         }
-    }
+        file.close();
+	//cout << "Size" << nodes.size() << "\n";
 }
 
-void PrintEveryNodeDV(Graph *g) {
-    for (auto i : g->nodes) {
-        PrintDV(i.second->dv);
-    }
+void distanceInitial() {
+	distance_vec.clear();
+	next_hop.clear();
+	for(int source : nodes) {
+		unordered_map <int, int> neighbors = edges[source];
+		for(int target : nodes) {
+			if(source == target) {
+				distance_vec[source][target] = 0;
+				next_hop[source][target] = target;
+			}
+			else if(neighbors.count(target) > 0) {
+				distance_vec[source][target] = neighbors[target];
+				next_hop[source][target] = target;
+			}
+			else {
+				distance_vec[source][target] = INT_MAX;
+			}
+		}
+	}
 }
 
-string PrintTopoEntry(Node *node) {
-    string res = "";
-    for (int i = 1; i < node->dv.size(); i++) {
-        if (node->dv[node->num][i] == INT_MAX) continue;
-        res += to_string(i) + " " + to_string(node->next_hop[node->num][i]) + " " + to_string(node->dv[node->num][i]) + "\n";
-        
-        // cout << i << " " << node->next_hop[node->num][i] << " " << node->dv[node->num][i] << endl;
-    }
-    return res;
+void computeDistance() {
+	bool converge = false;
+	while(converge == false) {
+		converge = true;
+		//Here we send from source to all its neighbors or the nodes currently connected, and up date the neighbor/connected nodes distance
+		for(int source : nodes) {
+			for(int neighbor : nodes) {
+				//If this node is not currently connect to source, we do not sent distance vector message to this node
+				//if(distance_vec[source][neighbor] == INT_MAX) {
+				//	continue;
+				//}
+				if(edges.count(source) <= 0 || edges[source].count(neighbor) <= 0) {
+					continue;
+				}
+				for(int source_vec : nodes) {
+					if(distance_vec[source][source_vec] == INT_MAX || source == source_vec) {
+						continue;
+					}
+					if(distance_vec[source][neighbor] + distance_vec[source][source_vec] < distance_vec[neighbor][source_vec]) {
+						//if(neighbor == 1 && source_vec == 3) {
+						//	cout << "Source:" << source << "  Neighbor:" << neighbor << "   Source_vec" << source_vec << "\n";
+						//}
+						distance_vec[neighbor][source_vec] = distance_vec[source][neighbor] + distance_vec[source][source_vec];
+						next_hop[neighbor][source_vec] = source;
+						converge = false;
+					}
+				}
+			}
+		}
+	}
 }
 
-
-string PrintFWDTable(Graph *g) {
-    string res = "";
-    for (int i = 1; i <= g->nodes.size(); i++) {
-        res += PrintTopoEntry(g->nodes[i]);
-    }
-    return res;
-}
-
-void SendVecToNeighbours(Node *n, unordered_set<int> &s) {
-    for (auto neighbour : n->neighbours) {
-        neighbour.second->dv[n->num] = n->dv[n->num];
-        neighbour.second->next_hop[n->num] = n->next_hop[n->num];
-        s.insert(neighbour.first);
-    }
-}
-
-void DistanceVectorInit(Graph *g, unordered_set<int> &s) {
-    for (auto node : g->nodes) {
-        cout << 1 << endl;
-        for (auto neighbour : node.second->neighbours_cost) {
-            cout << "neigbour: " << neighbour.first << "node: " << node.first << " size: " << node.second->dv[node.first].size() << endl;
-            cout << node.second->dv[node.first].size() << endl;
-            cout << g->nodes.size() << endl;
-            for (int i : node.second->dv[node.first]) {
-                cout << "i am " << i << endl;
-            }
-
-
-
-            node.second->dv[node.first][neighbour.first] = neighbour.second;
-            cout << "passed" << endl;
-            node.second->next_hop[node.first][neighbour.first] = neighbour.first;
-        }
-        cout << 2 << endl;
-        node.second->dv[node.first][node.first] = 0;
-        node.second->next_hop[node.first][node.first] = node.first;
-        cout << 3 << endl;
-        SendVecToNeighbours(node.second, s);
-        cout << 4 << endl;
-    }
-}
-
-
-unordered_set<int> DistanceVectorConvergeHelper(Graph *g, unordered_set<int> &s) {
-    unordered_set<int> new_notified;
-    cout << "im in" << endl;
-    for (auto i : s) {
-        Node *cur_node = g->nodes[i];
-        for (int j = 1; j < cur_node->dv[cur_node->num].size(); j++) {
-            int min_distance = cur_node->dv[cur_node->num][j];
-            int next = cur_node->next_hop[cur_node->num][j];
-            for (auto neighbour : cur_node->neighbours) {
-
-                int tmp_dis = cur_node->neighbours_cost[neighbour.first] + neighbour.second->dv[neighbour.first][j];
-
-                // if (cur_node->num == 1 && j == 3) {
-                //     cout << "from 1 to 3: neighbour: " << neighbour.first << " cur->neig: " << cur_node->dv[cur_node->num][neighbour.first] << " neigh->j: "<< neighbour.second->dv[neighbour.first][j] << endl;
-                // }
-                // if (cur_node->num == 1 && j == 3) {
-                //     cout << "from 1 to 3: cost is: " << tmp_dis << " hop: " << neighbour.first << " prev next: " << next << " edge cost: "<< cur_node->neighbours_cost[neighbour.first] << endl << endl;
-                // }
-                if (tmp_dis < 0) continue;
-                if (tmp_dis < min_distance || (tmp_dis == min_distance && neighbour.first < next)) {
-
-                    next = neighbour.first;
-                    min_distance = tmp_dis;
+void printForwardTable() {
+        ofstream outfile;
+        outfile.open("output.txt", ios_base::app);
+        for(auto i = distance_vec.begin(); i != distance_vec.end(); i++) {
+                map<int, int> temp = i -> second;
+                for(auto j = temp.begin(); j != temp.end(); j++) {
+			if(j -> second < INT_MAX) {
+				int source = i -> first;
+				int target = j -> first;
+				int cost = j -> second;
+				int next = next_hop[source][target];
+				outfile << target << " " << next << " " << cost << "\n"; 
+			}
                 }
-            }
-            if ((cur_node->dv[cur_node->num][j] > min_distance) || 
-                ((cur_node->dv[cur_node->num][j] == min_distance) && (cur_node->next_hop[cur_node->num][j] > next))) {
-                    
-                cur_node->dv[cur_node->num][j] = min_distance;
-                cur_node->next_hop[cur_node->num][j] = next;
-                SendVecToNeighbours(cur_node, new_notified);
-            }
         }
-    }
-    return new_notified;
+        outfile.close();
 }
 
-void DistanceVectorAlgo(Graph *g) {
-    unordered_set<int> notified_list;
-    DistanceVectorInit(g, notified_list);
-    cout << "inited" << endl;
-    while (!notified_list.empty()) {
-        notified_list = DistanceVectorConvergeHelper(g, notified_list);
-    }
-}
-
-string SendMsg(Graph *g, int from_node, int to_node, string msg) {
-    string res = "from " + to_string(from_node) + " to " + to_string(to_node) + " cost ";
-    int cost = g->nodes[from_node]->dv[from_node][to_node];
-    if (cost == INT_MAX) {
-        res += "infinite hops unreachable ";
-    } else {
-        res += to_string(cost) + " hops ";
-        int cur_node = from_node;
-        do {
-            res += to_string(cur_node) + " ";
-            cur_node = g->nodes[cur_node]->next_hop[cur_node][to_node];
-        } while (cur_node != to_node);
-    }
-    res += msg;
-    return res;
-}
-
-
-string ReadAndSendMessage(string file_name, Graph *g) {
-    string res = "";
-    string line;
-    ifstream fd;
-    fd.open(file_name);
-    if (fd.is_open()) {
-        while (getline(fd, line)) {
-            stringstream ss{line};
-            int from_node = 0;
-            int to_node = 0;
-            string msg = "message ";
-            ss >> from_node >> to_node;
-            if (from_node == 0) continue;
-            //cout << "start "<< from_node << " " << to_node << "\n";
-            msg += line.substr(to_string(from_node).size() + to_string(to_node).size() + 2);
-            //cout << "end\n";
-            res += SendMsg(g, from_node, to_node, msg) + "\n";
+void printSingleMessage(int source, int target) {
+        ofstream outfile;
+        outfile.open("output.txt", ios_base::app);
+        if(distance_vec.count(source) <= 0 || distance_vec[source].count(target) <= 0 || distance_vec[source][target] == INT_MAX) {
+                outfile << "from " << source << " to " << target << " cost infinite hops unreachable message ";
         }
-        fd.close();
-    }
-    return res;
-}
-
-string ReadChanges(string file_name, vector<tuple<int, int, int>> &data) {
-    string res = "";
-    string line;
-    ifstream fd;
-    fd.open(file_name);
-    if (fd.is_open()) {
-        while (getline(fd, line)) {
-            cout << "what1?\n";
-            stringstream ss{line};
-            int from_node = 0;
-            int to_node = 0;
-            int cost = 0;
-            ss >> from_node >> to_node >> cost;
-            Graph *new_graph = new Graph();
-            tuple<int, int, int> tup1 = make_tuple(from_node, to_node, cost);
-            bool changed = false;
-            bool isDelete = cost == -999;
-            cout << "what2?\n";
-            if (isDelete) {
-                int pos = 0;
-                for (int i = 0; i < data.size(); i++) {
-                    if (get<0>(data[i]) == from_node && get<1>(data[i]) == to_node) {
-                        pos = i;
-                        break;
-                    }
+        else if(source == target) {
+                int cost = 0;
+                outfile << "from " << source << " to " << target << " cost " << cost << " hops " << source << " message ";
+        }
+        else {
+                int next_op = next_hop[source][target];
+                int cost = distance_vec[source][target];
+                queue<int> path;
+                int curr = source;
+                while(curr != target) {
+                        path.push(curr);
+                        curr = next_op;
+                        next_op = next_hop[next_op][target];
                 }
-                data.erase(data.begin() + pos);
-                changed = true;
-                cout << "what3?\n";
-            } else {
-                for (auto &t : data) {
-                    if (get<0>(t) == from_node && get<1>(t) == to_node) {
-                        get<2>(t) = cost;
-                        changed = true;
-                        break;
-                    }
+                outfile << "from " << source << " to " << target << " cost " << cost << " hops ";
+                while(!path.empty()) {
+                        int next_op = path.front();
+                        path.pop();
+                        outfile << next_op << " ";
                 }
-                 cout << "what4?\n";
-            }
-
-            if (!changed) {
-               data.emplace_back(tup1);
-            }
-
-
-            new_graph->data = data;
-            cout << "what5?\n";
-            BuildGraph(new_graph);
-            cout << "what6?\n";
-            DistanceVectorAlgo(new_graph);
-            cout << "what7?\n";
-            res += PrintFWDTable(new_graph);
-            cout << "what8?\n";
-            res += ReadAndSendMessage("messagefile", new_graph);
-            cout << "what9?\n";
+                outfile << "message ";
         }
-        fd.close();
-    }
-    return res;
+        //outfile << "a new source and target";
+        outfile.close();
 }
+
+void printFullMessage(char* filename) {
+        string line;
+        ifstream message(filename);
+        if(message.is_open()) {
+                int s;
+                int t;
+                while(getline(message, line)) {
+                        stringstream ss;
+                        ss.str(line);
+                        ss >> s >> t;
+                        int split1 = line.find(" ");
+                        string post_split1 = line.substr(split1 + 1);
+                        int split2 = post_split1.find(" ");
+                        string post_split2 = post_split1.substr(split2 + 1);
+                        printSingleMessage(s, t);
+                        ofstream out;
+                        out.open("output.txt", ios_base::app);
+                        out << post_split2 << "\n";
+                        out.close();
+                }
+                message.close();
+        }
+}
+
 
 
 int main(int argc, char** argv) {
@@ -236,21 +173,50 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    ofstream fout;
-    fout.open("output.txt", ostream::trunc);
-    Graph *graph = new Graph();
-    vector<tuple<int, int, int>> original_data = ReadData(argv[1]);
-    graph->data = original_data;
-    BuildGraph(graph);
-    DistanceVectorAlgo(graph);
-    cout << "bug1?\n";
-    fout << PrintFWDTable(graph);
-    cout << "bug2?\n";
-    fout << ReadAndSendMessage(argv[2], graph);
-    cout << "bug3?\n";
-    fout << ReadChanges(argv[3], original_data);
 
-    fout.close();
+    FILE *fpOut;
+    fpOut = fopen("output.txt", "w");
+    fclose(fpOut);
+
+    readTopology(argv[1]);
+    distanceInitial();
+    //printTable();
+    computeDistance();
+    printForwardTable();
+    ifstream file;
+    //file.open(argv[3]);
+    int node1;
+    int node2;
+    int cost;
+    //Add missing steps
+    printFullMessage(argv[2]);
+    //cout << "aaaaa";
+    file.open(argv[3]);
+
+
+    //cout << "\n";
+    //int change_num = 1;
+    while(file >> node1 >> node2 >> cost) {
+            //cout << "bbbbb";
+            ofstream outfile_change_num;
+            outfile_change_num.open("output.txt", ios_base::app);
+            outfile_change_num.close();
+            if(cost == -999) {
+                    edges[node1].erase(node2);
+                    edges[node2].erase(node1);
+            }
+            else {
+                    edges[node1][node2] = cost;
+                    edges[node2][node1] = cost;
+            }
+            distanceInitial();
+            computeDistance();
+	    printForwardTable();
+            printFullMessage(argv[2]);
+    }
+    file.close();
+
+
     return 0;
 }
 

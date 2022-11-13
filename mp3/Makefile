@@ -9,7 +9,6 @@ LINKLIBS = -lpthread
 #by a space (e.g. SOMEOBJECTS = obj/foo.o obj/bar.o obj/baz.o).
 LINKSTATEOBJECTS = obj/linkstate.o
 DISTVECOBJECTS = obj/distvec.o
-GRAPHOBJECTS = obj/graph.o
 #CLIENTOBJECTS = obj/sender_main.o
 #TALKEROBJECTS = obj/talker.o
 #LISTENEROBJECTS = obj/listener.o
