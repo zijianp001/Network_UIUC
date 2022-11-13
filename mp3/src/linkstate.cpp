@@ -36,6 +36,7 @@ void readTopology(char* filename) {
 void distanceInitial() {
         distance_tbl.clear();
 	next_hop.clear();
+	P.clear();
         for(int source : nodes) {
                 unordered_map <int, int> neighbors = edges[source];
                 for(int target : nodes) {
