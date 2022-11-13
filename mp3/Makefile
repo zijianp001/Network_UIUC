@@ -9,6 +9,7 @@ LINKLIBS = -lpthread
 #by a space (e.g. SOMEOBJECTS = obj/foo.o obj/bar.o obj/baz.o).
 LINKSTATEOBJECTS = obj/linkstate.o
 DISTVECOBJECTS = obj/distvec.o
+GRAPHOBJECTS = obj/graph.o
 #CLIENTOBJECTS = obj/sender_main.o
 #TALKEROBJECTS = obj/talker.o
 #LISTENEROBJECTS = obj/listener.o
@@ -44,10 +45,11 @@ all : obj linkstate distvec
 #
 #In this case, CLIENTOBJECTS is just obj/client.o. So, if obj/client.o doesn't exist or is out of date, 
 #make will first look for a rule to build it. That rule is the 'obj/%.o' one, below; the % is a wildcard.
+
 linkstate: $(LINKSTATEOBJECTS)
 	$(CPP) $(COMPILERFLAGS) $^ -o $@ $(LINKLIBS)
 
-distvec: $(DISTVECOBJECTS)
+distvec: $(DISTVECOBJECTS) $(GRAPHOBJECTS)
 	$(CPP) $(COMPILERFLAGS) $^ -o $@ $(LINKLIBS)
 
 
