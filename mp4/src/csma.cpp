@@ -159,8 +159,13 @@ int main(int argc, char** argv) {
     ofstream outfile;
     ssize_t pos = s.find(".");
     outfile.open("output.txt", ios_base::app);
-    outfile << s.substr(0, pos);
-    outfile << s.substr(pos, 3);
+    if(result == 0.0) {
+        outfile << "0.00";
+    }
+    else {
+        outfile << s.substr(0, pos);
+        outfile << s.substr(pos, 3);
+    }
     outfile.close();
 }
 
