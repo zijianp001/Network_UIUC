@@ -154,18 +154,10 @@ int main(int argc, char** argv) {
     initializeNodes();
     int used = simulate();
     double result = ((double)(used)) / ((double)(T));
-    double toWrite = ceil(result * 100.0) / 100.0;
-    string s = to_string(toWrite);
     ofstream outfile;
-    ssize_t pos = s.find(".");
     outfile.open("output.txt", ios_base::app);
-    if(result == 0.0) {
-        outfile << "0.00";
-    }
-    else {
-        outfile << s.substr(0, pos);
-        outfile << s.substr(pos, 3);
-    }
+    outfile << setprecision(2);
+    outfile << result;
     outfile.close();
 }
 
