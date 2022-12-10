@@ -102,7 +102,7 @@ int simulate() {
         }
         else if(num_ready == 1) {
             if(tick + L > T) {
-                used = used + (L - tick);
+                used = used + (T - tick);
                 tick = tick + L;
             }
             else {
