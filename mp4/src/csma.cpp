@@ -13,10 +13,12 @@
 
 using namespace std;
 
+
 struct Node {
     int window;
     int backoff;
     int num_collision;
+    int time_trans;
 };
 
 int N;
@@ -25,6 +27,7 @@ int M;
 int T;
 //vector<int> time_slot;
 vector<int> range;
+int channelOccupied = 0;
 
 
 void readInput(char* filename) {
@@ -77,15 +80,77 @@ void initializeNodes() {
         n.backoff = setBackoff(i, 0, range[0]);
         n.num_collision = 0;
         nodes[i] = n;
+        nodes[i].time_trans = L;
     }
 }
 
 
 
 int simulate() {
-    int tick = 0;
     int used = 0;
-    while(tick < T) {
+    int curr_node = -1;
+    for(int tick = 0; tick < T; tick ++) {
+        if(channelOccupied == 0) {
+            int num_ready = 0;
+            vector<int> node_ready;
+            for(int i = 0; i < nodes.size(); i++) {
+                if(nodes[i].backoff == 0) {
+                    node_ready.push_back(i);
+                    num_ready ++;
+                }
+            }
+            if(num_ready == 0) {
+                for(int i = 0; i < nodes.size(); i++) {
+                    nodes[i].backoff -= 1;
+                }
+            }
+            else if(num_ready == 1) {
+                int idx_ready = node_ready[0];
+                nodes[idx_ready].window = range[0];
+                nodes[idx_ready].num_collision = 0;
+                curr_node = idx_ready;
+                nodes[idx_ready].time_trans -= 1;
+                used += 1;
+                channelOccupied = 1;
+                if(nodes[idx_ready].time_trans == 0) {
+                    channelOccupied = 0;
+                    nodes[idx_ready].window = range[0];
+                    nodes[idx_ready].num_collision = 0;
+                    nodes[idx_ready].backoff = setBackoff(idx_ready, tick + 1, range[0]);
+                    nodes[idx_ready].time_trans = L;
+                } 
+            }
+            else {
+                for(int i = 0; i < node_ready.size(); i++) {
+                    int idx_ready = node_ready[i];
+                    nodes[idx_ready].num_collision += 1;
+                    if(nodes[idx_ready].num_collision >= M) {
+                        nodes[idx_ready].window = range[0];
+                        nodes[idx_ready].num_collision = 0;
+                        nodes[idx_ready].backoff = setBackoff(idx_ready, tick + 1, range[0]);
+                    }
+                    else {
+                        nodes[idx_ready].window = range[nodes[idx_ready].num_collision];
+                        nodes[idx_ready].backoff = setBackoff(idx_ready, tick + 1, nodes[idx_ready].window);
+                    }
+                }
+            }
+        }
+        else {
+            if(nodes[curr_node].time_trans > 0) {
+                nodes[curr_node].time_trans -= 1;
+                used += 1;
+                if(nodes[curr_node].time_trans == 0) {
+                    channelOccupied = 0;
+                    nodes[curr_node].window = range[0];
+                    nodes[curr_node].num_collision = 0;
+                    nodes[curr_node].backoff = setBackoff(curr_node, tick + 1, range[0]);
+                    nodes[curr_node].time_trans = L;
+                }
+            }
+        }
+    }
+    /*while(tick < T) {
         int num_ready = 0;
         vector<int> node_ready;
         for(int i = 0; i < nodes.size(); i++) {
@@ -133,7 +198,7 @@ int simulate() {
             tick ++;
             continue;
         }
-    }
+    }*/
     return used;
 }
 
